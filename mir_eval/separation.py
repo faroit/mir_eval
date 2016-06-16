@@ -383,11 +383,16 @@ def bss_eval_images(reference_sources, estimated_sources,
         for jest in range(nsrc):
             for jtrue in range(nsrc):
                 s_true, e_spat, e_interf, e_artif = \
-                    _bss_decomp_mtifilt_images(reference_sources,
-                                               np.reshape(estimated_sources[jest],
-                                                          (nsampl, nchan),
-                                                          order='F'),
-                                               jtrue, 512)
+                    _bss_decomp_mtifilt_images(
+                        reference_sources,
+                        np.reshape(
+                            estimated_sources[jest],
+                            (nsampl, nchan),
+                            order='F'
+                        ),
+                        jtrue,
+                        512
+                    )
                 sdr[jest, jtrue], isr[jest, jtrue], \
                     sir[jest, jtrue], sar[jest, jtrue] = \
                     _bss_image_crit(s_true, e_spat, e_interf, e_artif)
