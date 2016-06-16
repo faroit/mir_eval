@@ -358,14 +358,15 @@ def bss_eval_images(reference_sources, estimated_sources,
         estimated_sources = estimated_sources[np.newaxis, :, :]
     if reference_sources.ndim == 2:
         reference_sources = reference_sources[np.newaxis, :, :]
-    if not estimated_sources.ndim == 3 or not reference_sources.ndim == 3:
+    if estimated_sources.ndim != 3 or reference_sources.ndim != 3:
         raise ValueError('Please ensure input is in the form (nsrc, nsampl,'
                          'nchan).')
 
     validate(reference_sources, estimated_sources)
     # If empty matrices were supplied, return empty lists (special case)
     if reference_sources.size == 0 or estimated_sources.size == 0:
-        return np.array([]), np.array([]), np.array([]), np.array([]), np.array([])
+        return np.array([]), np.array([]), np.array([]), \
+                         np.array([]), np.array([])
 
     # determine size parameters
     nsrc = estimated_sources.shape[0]
@@ -383,11 +384,12 @@ def bss_eval_images(reference_sources, estimated_sources,
             for jtrue in range(nsrc):
                 s_true, e_spat, e_interf, e_artif = \
                     _bss_decomp_mtifilt_images(reference_sources,
-                                        np.reshape(estimated_sources[jest],
-                                            (nsampl, nchan),
-                                            order='F'),
-                                        jtrue, 512)
-                sdr[jest, jtrue], isr[jest, jtrue], sir[jest, jtrue], sar[jest, jtrue] = \
+                                               np.reshape(estimated_sources[jest],
+                                                          (nsampl, nchan),
+                                                          order='F'),
+                                               jtrue, 512)
+                sdr[jest, jtrue], isr[jest, jtrue], \
+                    sir[jest, jtrue], sar[jest, jtrue] = \
                     _bss_image_crit(s_true, e_spat, e_interf, e_artif)
     else:
         # compute criteria for only the simple correspondence
@@ -396,16 +398,16 @@ def bss_eval_images(reference_sources, estimated_sources,
         isr = np.empty(nsrc)
         sir = np.empty(nsrc)
         sar = np.empty(nsrc)
-        Gj = [0] * nsrc # prepare G matrics with zeroes
+        Gj = [0] * nsrc  # prepare G matrics with zeroes
         G = np.zeros(1)
         for j in range(nsrc):
             # save G matrix to avoid recomputing it every call
             s_true, e_spat, e_interf, e_artif, Gj_temp, G = \
                 _bss_decomp_mtifilt_images(reference_sources,
-                                    np.reshape(estimated_sources[j],
-                                        (nsampl, nchan),
-                                        order='F'),
-                                    j, 512, Gj[j], G)
+                                           np.reshape(estimated_sources[j],
+                                                      (nsampl, nchan),
+                                                      order='F'),
+                                           j, 512, Gj[j], G)
             Gj[j] = Gj_temp
             sdr[j], isr[j], sir[j], sar[j] = \
                 _bss_image_crit(s_true, e_spat, e_interf, e_artif)
@@ -476,37 +478,34 @@ def _bss_decomp_mtifilt_images(reference_sources, estimated_source, j, flen,
     nsampl = np.shape(estimated_source)[0]
     nchan = np.shape(estimated_source)[1]
     # are we saving the Gj and G parameters?
-    if Gj is not None and G is not None:
-        saveG = True
-    else:  # if only one is none, fall back to safe evaluation
-        saveG = False
+    saveg = Gj is not None and G is not None
     # decomposition
     # true source image
     s_true = np.hstack((np.reshape(reference_sources[j],
-                            (nsampl, nchan),
-                            order="F").transpose(),
+                                   (nsampl, nchan),
+                                   order="F").transpose(),
                         np.zeros((nchan, flen - 1))))
     # spatial (or filtering) distortion
-    if saveG:
+    if saveg:
         e_spat, Gj = _project_images(reference_sources[j, np.newaxis, :],
-                        estimated_source, flen, Gj)
+                                     estimated_source, flen, Gj)
     else:
         e_spat = _project_images(reference_sources[j, np.newaxis, :],
-                            estimated_source, flen)
+                                 estimated_source, flen)
     e_spat = e_spat - s_true
     # interference
-    if saveG:
+    if saveg:
         e_interf, G = _project_images(reference_sources,
-                        estimated_source, flen, G)
+                                      estimated_source, flen, G)
     else:
         e_interf = _project_images(reference_sources,
-                            estimated_source, flen)
+                                   estimated_source, flen)
     e_interf = e_interf - s_true - e_spat
     # artifacts
     e_artif = -s_true - e_spat - e_interf
-    e_artif[:,:nsampl] += estimated_source.transpose()
+    e_artif[:, :nsampl] += estimated_source.transpose()
     # return Gj and G only if they were passed in
-    if saveG:
+    if saveg:
         return (s_true, e_spat, e_interf, e_artif, Gj, G)
     else:
         return (s_true, e_spat, e_interf, e_artif)
@@ -575,21 +574,22 @@ def _project_images(reference_sources, estimated_source, flen, G=None):
     delayed versions of reference sources, with delays between 0 and flen-1
     """
     nsrc, nsampl, nchan = reference_sources.shape
-    reference_sources = np.reshape(np.transpose(reference_sources, (2,0,1)),
-        (nchan*nsrc, nsampl), order='F')
+    reference_sources = np.reshape(np.transpose(reference_sources, (2, 0, 1)),
+                                   (nchan*nsrc, nsampl), order='F')
 
     # computing coefficients of least squares problem via FFT ##
     # zero padding and FFT of input data
     reference_sources = np.hstack((reference_sources,
-                               np.zeros((nchan*nsrc, flen - 1))))
-    estimated_source = np.hstack((estimated_source.transpose(), np.zeros((nchan, flen - 1))))
+                                   np.zeros((nchan*nsrc, flen - 1))))
+    estimated_source = \
+        np.hstack((estimated_source.transpose(), np.zeros((nchan, flen - 1))))
     n_fft = int(2**np.ceil(np.log2(nsampl + flen - 1.)))
     sf = scipy.fftpack.fft(reference_sources, n=n_fft, axis=1)
     sef = scipy.fftpack.fft(estimated_source, n=n_fft)
 
     # inner products between delayed versions of reference_sources
     if G is None:
-        saveG = False
+        saveg = False
         G = np.zeros((nchan * nsrc * flen, nchan * nsrc * flen))
         for i in range(nchan * nsrc):
             for j in range(i+1):
@@ -599,9 +599,9 @@ def _project_images(reference_sources, estimated_source, flen, G=None):
                               r=ssf[:flen])
                 G[i * flen: (i+1) * flen, j * flen: (j+1) * flen] = ss
                 G[j * flen: (j+1) * flen, i * flen: (i+1) * flen] = ss.T
-    else: # avoid recomputing G (only works if no permutation is desired)
-        saveG = True # return G
-        if np.all(G==0): # only compute G if passed as 0
+    else:  # avoid recomputing G (only works if no permutation is desired)
+        saveg = True  # return G
+        if np.all(G == 0):  # only compute G if passed as 0
             G = np.zeros((nchan * nsrc * flen, nchan * nsrc * flen))
             for i in range(nchan * nsrc):
                 for j in range(i+1):
@@ -619,21 +619,24 @@ def _project_images(reference_sources, estimated_source, flen, G=None):
         for i in range(nchan):
             ssef = sf[k] * np.conj(sef[i])
             ssef = np.real(scipy.fftpack.ifft(ssef))
-            D[k * flen: (k+1) * flen, i] = np.hstack((ssef[0], ssef[-1:-flen:-1])).transpose()
+            D[k * flen: (k+1) * flen, i] = \
+                np.hstack((ssef[0], ssef[-1:-flen:-1])).transpose()
 
     # Computing projection
     # Distortion filters
     try:
         C = np.linalg.solve(G, D).reshape(flen, nchan*nsrc, nchan, order='F')
     except np.linalg.linalg.LinAlgError:
-        C = np.linalg.lstsq(G, D)[0].reshape(flen, nchan*nsrc, nchan, order='F')
+        C = np.linalg.lstsq(G, D)[0].reshape(flen, nchan*nsrc, nchan,
+                                             order='F')
     # Filtering
     sproj = np.zeros((nchan, nsampl + flen - 1))
     for k in range(nchan * nsrc):
         for i in range(nchan):
-            sproj[i] += fftconvolve(C[:, k, i].transpose(), reference_sources[k])[:nsampl + flen - 1]
+            sproj[i] += fftconvolve(C[:, k, i].transpose(),
+                                    reference_sources[k])[:nsampl + flen - 1]
     # return G only if it was passed in
-    if saveG:
+    if saveg:
         return sproj, G
     else:
         return sproj
