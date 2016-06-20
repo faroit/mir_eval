@@ -40,6 +40,9 @@ import collections
 import itertools
 import warnings
 from . import util
+import pycuda.autoinit
+import pycuda.gpuarray as gpuarray
+import skcuda.fft as scfft
 
 
 # The maximum allowable number of sources (prevents insane computational load)
@@ -541,14 +544,31 @@ def _project(reference_sources, estimated_source, flen):
                                    np.zeros((nsrc, flen - 1))))
     estimated_source = np.hstack((estimated_source, np.zeros(flen - 1)))
     n_fft = int(2**np.ceil(np.log2(nsampl + flen - 1.)))
-    sf = scipy.fftpack.fft(reference_sources, n=n_fft, axis=1)
-    sef = scipy.fftpack.fft(estimated_source, n=n_fft)
+
+    reference_sources, _ = scipy.fftpack.basic._fix_shape(reference_sources, n_fft, 1)
+    estimated_source, _ = scipy.fftpack.basic._fix_shape(estimated_source, n_fft, -1)
+
+    reference_sources_gpu = gpuarray.to_gpu(reference_sources.astype(np.float32))
+    estimated_source_gpu = gpuarray.to_gpu(estimated_source.astype(np.float32))
+
+    sf_gpu = gpuarray.empty(reference_sources.shape, np.complex64)
+    sef_gpu = gpuarray.empty(n_fft, np.complex64)
+
+    sf_plan = scfft.Plan(reference_sources.shape, np.float32, np.complex64)
+    sef_plan = scfft.Plan(estimated_source.shape, np.float32, np.complex64)
+
+    scfft.fft(reference_sources_gpu, sf_gpu, sf_plan)
+    scfft.fft(estimated_source_gpu, sef_gpu, sef_plan)
+
+    sf = np.atleast_2d(sf_gpu.get())
+    sef = sef_gpu.get()
     # inner products between delayed versions of reference_sources
     G = np.zeros((nsrc * flen, nsrc * flen))
     for i in range(nsrc):
         for j in range(nsrc):
             ssf = sf[i] * np.conj(sf[j])
             ssf = np.real(scipy.fftpack.ifft(ssf))
+            # process inverse
             ss = toeplitz(np.hstack((ssf[0], ssf[-1:-flen:-1])),
                           r=ssf[:flen])
             G[i * flen: (i+1) * flen, j * flen: (j+1) * flen] = ss
