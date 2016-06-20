@@ -435,7 +435,7 @@ def bss_eval_images(reference_sources, estimated_sources,
 
 
 def bss_eval_images_framewise(reference_sources, estimated_sources,
-                               window, hop, compute_permutation=False):
+                              window, hop, compute_permutation=False):
     """Framewise computation of bss_eval_images
 
     Examples
@@ -519,11 +519,11 @@ def bss_eval_images_framewise(reference_sources, estimated_sources,
     for k in range(nwin):
         win_slice = slice(k * hop, k * hop + window)
         sdr[:, k], isr[:, k], sir[:, k], sar[:, k], perm[:, k] = \
-        bss_eval_images(
-            reference_sources[:, win_slice, :],
-            estimated_sources[:, win_slice, :],
-            compute_permutation
-        )
+            bss_eval_images(
+                reference_sources[:, win_slice, :],
+                estimated_sources[:, win_slice, :],
+                compute_permutation
+            )
 
     return sdr, isr, sir, sar, perm
 
