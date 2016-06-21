@@ -354,13 +354,9 @@ def bss_eval_images(reference_sources, estimated_sources,
     """
 
     # make sure the input is of shape (nsrc, nsampl, nchan)
-    if estimated_sources.ndim == 2:
-        estimated_sources = estimated_sources[np.newaxis, :, :]
-    if reference_sources.ndim == 2:
-        reference_sources = reference_sources[np.newaxis, :, :]
     if estimated_sources.ndim != 3 or reference_sources.ndim != 3:
         raise ValueError('Please ensure input is in the form (nsrc, nsampl,'
-                         'nchan).')
+                         'nchan). Cannot infer desired shape from input.')
 
     validate(reference_sources, estimated_sources)
     # If empty matrices were supplied, return empty lists (special case)
@@ -722,7 +718,7 @@ def _safe_db(num, den):
     return 10 * np.log10(num / den)
 
 
-def evaluate(reference_sources, estimated_sources,
+def evaluate(reference_sources, estimated_sources, image=False,
              window=None, hop=None, **kwargs):
     """Compute all metrics for the given reference and estimated annotations.
 
@@ -736,10 +732,13 @@ def evaluate(reference_sources, estimated_sources,
 
     Parameters
     ----------
-    reference_sources : np.ndarray, shape=(nsrc, nsampl)
+    reference_sources : np.ndarray, shape=(nsrc, nsampl[, nchan])
         matrix containing true sources
-    estimated_sources : np.ndarray, shape=(nsrc, nsampl)
+    estimated_sources : np.ndarray, shape=(nsrc, nsampl[, nchan])
         matrix containing estimated sources
+    image : bool, optional
+        whether to use bss_eval_images for evaluating the metrics
+        if False, input cannot have more than 2 dimensions
     window : int, optional
         Window length for framewise evaluation
     hop : int, optional
@@ -755,28 +754,50 @@ def evaluate(reference_sources, estimated_sources,
         the value is the (float) score achieved.
 
     """
+    # Parameter image must be True if input is higher than 3D
+    if reference_sources.ndim > 2 or estimated_sources.ndim > 2:
+        if not image:
+            raise ValueError('Cannot evaluate a stereo image using'
+                             'bss_eval_sources. Please pass image=True to'
+                             'evaluate using bss_eval_images.')
+    # Ensure image is a boolean (to prevent accidental parameter misordering)
+    if not isinstance(image, bool):
+        raise ValueError('The image parameter supplied is not a boolean!')
+
     # Compute all the metrics
     scores = collections.OrderedDict()
 
     if window is not None and hop is not None:
-        sdr, sir, sar, perm = util.filter_kwargs(
-            bss_eval_sources_framewise,
-            reference_sources,
-            estimated_sources,
-            window,
-            hop,
-            **kwargs
-        )
+        if image:
+            raise ValueError('Windowed evaluation is not yet implemented for'
+                             'images.')
+        else:
+            sdr, sir, sar, perm = util.filter_kwargs(
+                bss_eval_sources_framewise,
+                reference_sources,
+                estimated_sources,
+                window,
+                hop,
+                **kwargs
+            )
     elif window is not None or hop is not None:
         raise ValueError('In order to perform windowed evaluation, both window'
                          'and hop parameters must be supplied.')
     else:
-        sdr, sir, sar, perm = util.filter_kwargs(
-            bss_eval_sources,
-            reference_sources,
-            estimated_sources,
-            **kwargs
-        )
+        if image:
+            sdr, sir, sar, perm = util.filter_kwargs(
+                bss_eval_images,
+                reference_sources,
+                estimated_sources,
+                **kwargs
+            )
+        else:
+            sdr, sir, sar, perm = util.filter_kwargs(
+                bss_eval_sources,
+                reference_sources,
+                estimated_sources,
+                **kwargs
+            )
 
     scores['Source to Distortion'] = sdr.tolist()
     scores['Source to Interference'] = sir.tolist()
