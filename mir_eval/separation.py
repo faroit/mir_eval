@@ -46,6 +46,62 @@ from . import util
 MAX_SOURCES = 100
 
 
+class DefaultFFT(object):
+    """Class designed for power-users to inherit and replace with their own
+    versions of fft, ifft and convolution. This allows substitution of faster
+    versions that may require more installation and setup than is appropriate
+    for mir_eval.
+
+    Defaults to using scipy.fftpack and scipy.signal.fftconvolve
+
+    Attributes:
+        fft_name : string
+            the name of the currently planned fft
+        input_array : ndarray
+            the array on which to perform the fft
+        direction : string
+            the direction of the fft that will be performed next either
+            'forward' or 'inverse'
+        source_type : dtype
+            the type of the input to the fft
+        result_type : dtype
+            the desired output type
+    """
+
+    def __init__(self):
+        """Returns a new object."""
+        self.fft_name = ""
+        self.input_array = None
+        self.direction = ""
+        self.source_type = None
+        self.result_type = None
+
+    def plan_fft(self, fft_name="", input_array=None, direction='forward',
+                 source_type=None, result_type=None):
+        """Plan the next fft to be performed. Simply `pass` if no planning
+        required. A few parameters are supplied that should be sufficient for
+        most planning algorithms. More may have to be added depending on the
+        planning used."""
+        self.fft_name = fft_name
+        self.input_array = input_array
+        self.direction = direction
+        self.source_type = source_type
+        self.result_type = result_type
+
+    def perform_fft(self, target, **kwargs):
+        """Perform an fft (that was just planned, if planning is required)."""
+        return scipy.fftpack.fft(target, **kwargs)
+
+    def perform_ifft(self, target, **kwargs):
+        """Perform an ifft (that was just planned, if planning is required)."""
+        return scipy.fftpack.ifft(target, **kwargs)
+
+    def perform_convolution(self, tensor1, tensor2, **kwargs):
+        """Perform a convolution of the two input tensors. May need to make use
+        of above functions for performing the convolution."""
+        return fftconvolve(tensor1, tensor2, **kwargs)
+
+
 def validate(reference_sources, estimated_sources):
     """Checks that the input data to a metric are valid, and throws helpful
     errors if not.
@@ -108,7 +164,7 @@ def validate(reference_sources, estimated_sources):
 
 
 def bss_eval_sources(reference_sources, estimated_sources,
-                     compute_permutation=True):
+                     compute_permutation=True, fft_evaluator=None):
     """MATLAB translation of BSS_EVAL Toolbox
 
     Ordering and measurement of the separation quality for estimated source
@@ -137,6 +193,8 @@ def bss_eval_sources(reference_sources, estimated_sources,
         reference_sources)
     compute_permutation : bool, optional
         compute permutation of estimate/source combinations (True by default)
+    fft_evaluator : object, optional
+        instance of class with methods for evaluating ffts
 
     Returns
     -------
@@ -167,6 +225,16 @@ def bss_eval_sources(reference_sources, estimated_sources,
 
     nsrc = estimated_sources.shape[0]
 
+    # check if use provided their own fft evaluator
+    if fft_evaluator is None:
+        fft_evaluator = DefaultFFT()
+    else:
+        # verify that all the functions can be called
+        assert callable(fft_evaluator.plan_fft)
+        assert callable(fft_evaluator.perform_fft)
+        assert callable(fft_evaluator.perform_ifft)
+        assert callable(fft_evaluator.perform_convolution)
+
     # does user desire permutations?
     if compute_permutation:
         # compute criteria for all possible pair matches
@@ -178,7 +246,7 @@ def bss_eval_sources(reference_sources, estimated_sources,
                 s_true, e_spat, e_interf, e_artif = \
                     _bss_decomp_mtifilt(reference_sources,
                                         estimated_sources[jest],
-                                        jtrue, 512)
+                                        jtrue, 512, fft_evaluator)
                 sdr[jest, jtrue], sir[jest, jtrue], sar[jest, jtrue] = \
                     _bss_source_crit(s_true, e_spat, e_interf, e_artif)
     else:
@@ -191,7 +259,7 @@ def bss_eval_sources(reference_sources, estimated_sources,
             s_true, e_spat, e_interf, e_artif = \
                 _bss_decomp_mtifilt(reference_sources,
                                     estimated_sources[j],
-                                    j, 512)
+                                    j, 512, fft_evaluator)
             sdr[j], sir[j], sar[j] = \
                 _bss_source_crit(s_true, e_spat, e_interf, e_artif)
 
@@ -213,7 +281,8 @@ def bss_eval_sources(reference_sources, estimated_sources,
 
 
 def bss_eval_sources_framewise(reference_sources, estimated_sources,
-                               window, hop, compute_permutation=False):
+                               window, hop, compute_permutation=False,
+                               fft_evaluator=None):
     """Framewise computation of bss_eval_sources
 
     Examples
@@ -282,6 +351,16 @@ def bss_eval_sources_framewise(reference_sources, estimated_sources,
                          'From these paramters it was determined that only {} '
                          'window(s) should be used.'.format(nwin))
 
+    # check if use provided their own fft evaluator
+    if fft_evaluator is None:
+        fft_evaluator = DefaultFFT()
+    else:
+        # verify that all the functions can be called
+        assert callable(fft_evaluator.plan_fft)
+        assert callable(fft_evaluator.perform_fft)
+        assert callable(fft_evaluator.perform_ifft)
+        assert callable(fft_evaluator.perform_convolution)
+
     # compute the criteria across all windows
     sdr = np.empty((nsrc, nwin))
     sir = np.empty((nsrc, nwin))
@@ -294,14 +373,15 @@ def bss_eval_sources_framewise(reference_sources, estimated_sources,
         sdr[:, k], sir[:, k], sar[:, k], perm[:, k] = bss_eval_sources(
             reference_sources[:, win_slice],
             estimated_sources[:, win_slice],
-            compute_permutation
+            compute_permutation,
+            fft_evaluator
         )
 
     return sdr, sir, sar, perm
 
 
 def bss_eval_images(reference_sources, estimated_sources,
-                    compute_permutation=True):
+                    compute_permutation=True, fft_evaluator=None):
     """Implementation of the bss_eval_images function from the
     BSS_EVAL Matlab toolbox.
 
@@ -368,6 +448,16 @@ def bss_eval_images(reference_sources, estimated_sources,
         return np.array([]), np.array([]), np.array([]), \
                          np.array([]), np.array([])
 
+    # check if use provided their own fft evaluator
+    if fft_evaluator is None:
+        fft_evaluator = DefaultFFT()
+    else:
+        # verify that all the functions can be called
+        assert callable(fft_evaluator.plan_fft)
+        assert callable(fft_evaluator.perform_fft)
+        assert callable(fft_evaluator.perform_ifft)
+        assert callable(fft_evaluator.perform_convolution)
+
     # determine size parameters
     nsrc = estimated_sources.shape[0]
     nsampl = estimated_sources.shape[1]
@@ -391,7 +481,8 @@ def bss_eval_images(reference_sources, estimated_sources,
                             order='F'
                         ),
                         jtrue,
-                        512
+                        512,
+                        fft_evaluator
                     )
                 sdr[jest, jtrue], isr[jest, jtrue], \
                     sir[jest, jtrue], sar[jest, jtrue] = \
@@ -412,7 +503,7 @@ def bss_eval_images(reference_sources, estimated_sources,
                                            np.reshape(estimated_sources[j],
                                                       (nsampl, nchan),
                                                       order='F'),
-                                           j, 512, Gj[j], G)
+                                           j, 512, Gj[j], G, fft_evaluator)
             Gj[j] = Gj_temp
             sdr[j], isr[j], sir[j], sar[j] = \
                 _bss_image_crit(s_true, e_spat, e_interf, e_artif)
@@ -435,7 +526,8 @@ def bss_eval_images(reference_sources, estimated_sources,
 
 
 def bss_eval_images_framewise(reference_sources, estimated_sources,
-                              window, hop, compute_permutation=False):
+                              window, hop, compute_permutation=False,
+                              fft_evaluator=None):
     """Framewise computation of bss_eval_images
 
     Examples
@@ -508,6 +600,16 @@ def bss_eval_images_framewise(reference_sources, estimated_sources,
                          'From these paramters it was determined that only {} '
                          'window(s) should be used.'.format(nwin))
 
+    # check if use provided their own fft evaluator
+    if fft_evaluator is None:
+        fft_evaluator = DefaultFFT()
+    else:
+        # verify that all the functions can be called
+        assert callable(fft_evaluator.plan_fft)
+        assert callable(fft_evaluator.perform_fft)
+        assert callable(fft_evaluator.perform_ifft)
+        assert callable(fft_evaluator.perform_convolution)
+
     # compute the criteria across all windows
     sdr = np.empty((nsrc, nwin))
     isr = np.empty((nsrc, nwin))
@@ -522,13 +624,15 @@ def bss_eval_images_framewise(reference_sources, estimated_sources,
             bss_eval_images(
                 reference_sources[:, win_slice, :],
                 estimated_sources[:, win_slice, :],
-                compute_permutation
+                compute_permutation,
+                fft_evaluator
             )
 
     return sdr, isr, sir, sar, perm
 
 
-def _bss_decomp_mtifilt(reference_sources, estimated_source, j, flen):
+def _bss_decomp_mtifilt(reference_sources, estimated_source, j, flen,
+                        fft_evaluator):
     """Decomposition of an estimated source image into four components
     representing respectively the true source image, spatial (or filtering)
     distortion, interference and artifacts, derived from the true source
@@ -544,6 +648,8 @@ def _bss_decomp_mtifilt(reference_sources, estimated_source, j, flen):
 
     flen :
 
+    fft_evaluator :
+
 
     Returns
     -------
@@ -555,10 +661,10 @@ def _bss_decomp_mtifilt(reference_sources, estimated_source, j, flen):
     s_true = np.hstack((reference_sources[j], np.zeros(flen - 1)))
     # spatial (or filtering) distortion
     e_spat = _project(reference_sources[j, np.newaxis, :], estimated_source,
-                      flen) - s_true
+                      flen, fft_evaluator) - s_true
     # interference
-    e_interf = _project(reference_sources,
-                        estimated_source, flen) - s_true - e_spat
+    e_interf = _project(reference_sources, estimated_source,
+                        flen, fft_evaluator) - s_true - e_spat
     # artifacts
     e_artif = -s_true - e_spat - e_interf
     e_artif[:nsampl] += estimated_source
@@ -566,7 +672,7 @@ def _bss_decomp_mtifilt(reference_sources, estimated_source, j, flen):
 
 
 def _bss_decomp_mtifilt_images(reference_sources, estimated_source, j, flen,
-                               Gj=None, G=None):
+                               fft_evaluator, Gj=None, G=None):
     """Decomposition of an estimated source image into four components
     representing respectively the true source image, spatial (or filtering)
     distortion, interference and artifacts, derived from the true source
@@ -587,18 +693,18 @@ def _bss_decomp_mtifilt_images(reference_sources, estimated_source, j, flen,
     # spatial (or filtering) distortion
     if saveg:
         e_spat, Gj = _project_images(reference_sources[j, np.newaxis, :],
-                                     estimated_source, flen, Gj)
+                                     estimated_source, flen, fft_evaluator, Gj)
     else:
         e_spat = _project_images(reference_sources[j, np.newaxis, :],
-                                 estimated_source, flen)
+                                 estimated_source, flen, fft_evaluator)
     e_spat = e_spat - s_true
     # interference
     if saveg:
         e_interf, G = _project_images(reference_sources,
-                                      estimated_source, flen, G)
+                                      estimated_source, flen, fft_evaluator, G)
     else:
         e_interf = _project_images(reference_sources,
-                                   estimated_source, flen)
+                                   estimated_source, flen, fft_evaluator)
     e_interf = e_interf - s_true - e_spat
     # artifacts
     e_artif = -s_true - e_spat - e_interf
@@ -610,7 +716,7 @@ def _bss_decomp_mtifilt_images(reference_sources, estimated_source, j, flen,
         return (s_true, e_spat, e_interf, e_artif)
 
 
-def _project(reference_sources, estimated_source, flen):
+def _project(reference_sources, estimated_source, flen, fft_evaluator):
     """Least-squares projection of estimated source on the subspace spanned by
     delayed versions of reference sources, with delays between 0 and flen-1
 
@@ -621,6 +727,8 @@ def _project(reference_sources, estimated_source, flen):
     estimated_source :
 
     flen :
+
+    fft_evaluator :
 
 
     Returns
@@ -635,14 +743,19 @@ def _project(reference_sources, estimated_source, flen):
                                    np.zeros((nsrc, flen - 1))))
     estimated_source = np.hstack((estimated_source, np.zeros(flen - 1)))
     n_fft = int(2**np.ceil(np.log2(nsampl + flen - 1.)))
-    sf = scipy.fftpack.fft(reference_sources, n=n_fft, axis=1)
-    sef = scipy.fftpack.fft(estimated_source, n=n_fft)
+    # perform an fft of the reference sources
+    fft_evaluator.plan_fft('fft_sf', reference_sources, 'forward')
+    sf = fft_evaluator.perform_fft(reference_sources, n=n_fft)
+    # perform an fft of the estimated sources
+    fft_evaluator.plan_fft('fft_sef', estimated_source, 'forward')
+    sef = fft_evaluator.perform_fft(estimated_source, n=n_fft)
     # inner products between delayed versions of reference_sources
     G = np.zeros((nsrc * flen, nsrc * flen))
     for i in range(nsrc):
         for j in range(nsrc):
             ssf = sf[i] * np.conj(sf[j])
-            ssf = np.real(scipy.fftpack.ifft(ssf))
+            fft_evaluator.plan_fft('fft_ssf', ssf, 'inverse')
+            ssf = np.real(fft_evaluator.perform_ifft(ssf))
             ss = toeplitz(np.hstack((ssf[0], ssf[-1:-flen:-1])),
                           r=ssf[:flen])
             G[i * flen: (i+1) * flen, j * flen: (j+1) * flen] = ss
@@ -652,7 +765,8 @@ def _project(reference_sources, estimated_source, flen):
     D = np.zeros(nsrc * flen)
     for i in range(nsrc):
         ssef = sf[i] * np.conj(sef)
-        ssef = np.real(scipy.fftpack.ifft(ssef))
+        fft_evaluator.plan_fft('fft_ssef', ssef, 'inverse')
+        ssef = np.real(fft_evaluator.perform_ifft(ssef))
         D[i * flen: (i+1) * flen] = np.hstack((ssef[0], ssef[-1:-flen:-1]))
 
     # Computing projection
@@ -664,11 +778,15 @@ def _project(reference_sources, estimated_source, flen):
     # Filtering
     sproj = np.zeros(nsampl + flen - 1)
     for i in range(nsrc):
-        sproj += fftconvolve(C[:, i], reference_sources[i])[:nsampl + flen - 1]
+        sproj += fft_evaluator.perform_convolution(
+            C[:, i],
+            reference_sources[i]
+        )[:nsampl + flen - 1]
     return sproj
 
 
-def _project_images(reference_sources, estimated_source, flen, G=None):
+def _project_images(reference_sources, estimated_source, flen, fft_evaluator,
+                    G=None):
     """Least-squares projection of estimated source on the subspace spanned by
     delayed versions of reference sources, with delays between 0 and flen-1
     """
@@ -683,9 +801,12 @@ def _project_images(reference_sources, estimated_source, flen, G=None):
     estimated_source = \
         np.hstack((estimated_source.transpose(), np.zeros((nchan, flen - 1))))
     n_fft = int(2**np.ceil(np.log2(nsampl + flen - 1.)))
-    sf = scipy.fftpack.fft(reference_sources, n=n_fft, axis=1)
-    sef = scipy.fftpack.fft(estimated_source, n=n_fft)
-
+    # perform an fft of the reference sources
+    fft_evaluator.plan_fft('fft_sf', reference_sources, 'forward')
+    sf = fft_evaluator.perform_fft(reference_sources, n=n_fft)
+    # perform an fft of the estimated sources
+    fft_evaluator.plan_fft('fft_sef', estimated_source, 'forward')
+    sef = fft_evaluator.perform_fft(estimated_source, n=n_fft)
     # inner products between delayed versions of reference_sources
     if G is None:
         saveg = False
@@ -693,7 +814,8 @@ def _project_images(reference_sources, estimated_source, flen, G=None):
         for i in range(nchan * nsrc):
             for j in range(i+1):
                 ssf = sf[i] * np.conj(sf[j])
-                ssf = np.real(scipy.fftpack.ifft(ssf))
+                fft_evaluator.plan_fft('fft_ssf', ssf, 'inverse')
+                ssf = np.real(fft_evaluator.perform_ifft(ssf))
                 ss = toeplitz(np.hstack((ssf[0], ssf[-1:-flen:-1])),
                               r=ssf[:flen])
                 G[i * flen: (i+1) * flen, j * flen: (j+1) * flen] = ss
@@ -705,7 +827,8 @@ def _project_images(reference_sources, estimated_source, flen, G=None):
             for i in range(nchan * nsrc):
                 for j in range(i+1):
                     ssf = sf[i] * np.conj(sf[j])
-                    ssf = np.real(scipy.fftpack.ifft(ssf))
+                    fft_evaluator.plan_fft('fft_ssf', ssf, 'inverse')
+                    ssf = np.real(fft_evaluator.perform_ifft(ssf))
                     ss = toeplitz(np.hstack((ssf[0], ssf[-1:-flen:-1])),
                                   r=ssf[:flen])
                     G[i * flen: (i+1) * flen, j * flen: (j+1) * flen] = ss
@@ -717,7 +840,8 @@ def _project_images(reference_sources, estimated_source, flen, G=None):
     for k in range(nchan * nsrc):
         for i in range(nchan):
             ssef = sf[k] * np.conj(sef[i])
-            ssef = np.real(scipy.fftpack.ifft(ssef))
+            fft_evaluator.plan_fft('fft_ssef', ssef, 'inverse')
+            ssef = np.real(fft_evaluator.perform_ifft(ssef))
             D[k * flen: (k+1) * flen, i] = \
                 np.hstack((ssef[0], ssef[-1:-flen:-1])).transpose()
 
@@ -732,8 +856,10 @@ def _project_images(reference_sources, estimated_source, flen, G=None):
     sproj = np.zeros((nchan, nsampl + flen - 1))
     for k in range(nchan * nsrc):
         for i in range(nchan):
-            sproj[i] += fftconvolve(C[:, k, i].transpose(),
-                                    reference_sources[k])[:nsampl + flen - 1]
+            sproj += fft_evaluator.perform_convolution(
+                C[:, k, i].transpose(),
+                reference_sources[k]
+            )[:nsampl + flen - 1]
     # return G only if it was passed in
     if saveg:
         return sproj, G
