@@ -66,7 +66,7 @@ def __unit_test_separation_function(metric):
     # Test for default permutation matrix when not computing permutation
     est_sources = np.random.random_sample((4, 100))
     results = metric(ref_sources, est_sources, compute_permutation=False)
-    assert results[3] == [0, 1, 2, 3]
+    assert np.array_equal(results[-1], np.asarray([0, 1, 2, 3]))
 
     # Test for error when too many sources or references are provided
     sources = np.random.random_sample((mir_eval.separation.MAX_SOURCES*2, 400))
@@ -149,7 +149,7 @@ def test_separation_functions():
         # Compute scores
         scores = mir_eval.separation.evaluate(ref_sources, est_sources)
         frame_scores = mir_eval.separation.evaluate(
-            ref_sources, est_sources,
+            ref_sources, est_sources, False,
             expected_frames['win'], expected_frames['hop']
         )
         # For reasons of coverage
