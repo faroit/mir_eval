@@ -741,7 +741,7 @@ def _project(reference_sources, estimated_source, flen, fft_evaluator):
     n_fft = int(2**np.ceil(np.log2(nsampl + flen - 1.)))
     # perform an fft of the reference sources
     fft_evaluator.plan_fft('fft_sf', reference_sources, 'forward')
-    sf = fft_evaluator.perform_fft(reference_sources, n=n_fft)
+    sf = fft_evaluator.perform_fft(reference_sources, n=n_fft, axis=1)
     # perform an fft of the estimated sources
     fft_evaluator.plan_fft('fft_sef', estimated_source, 'forward')
     sef = fft_evaluator.perform_fft(estimated_source, n=n_fft)
@@ -774,7 +774,7 @@ def _project(reference_sources, estimated_source, flen, fft_evaluator):
     # Filtering
     sproj = np.zeros(nsampl + flen - 1)
     for i in range(nsrc):
-        sproj += fft_evaluator.perform_convolution(
+        sproj[i] += fft_evaluator.perform_convolution(
             C[:, i],
             reference_sources[i]
         )[:nsampl + flen - 1]
@@ -799,7 +799,7 @@ def _project_images(reference_sources, estimated_source, flen, fft_evaluator,
     n_fft = int(2**np.ceil(np.log2(nsampl + flen - 1.)))
     # perform an fft of the reference sources
     fft_evaluator.plan_fft('fft_sf', reference_sources, 'forward')
-    sf = fft_evaluator.perform_fft(reference_sources, n=n_fft)
+    sf = fft_evaluator.perform_fft(reference_sources, n=n_fft, axis=1)
     # perform an fft of the estimated sources
     fft_evaluator.plan_fft('fft_sef', estimated_source, 'forward')
     sef = fft_evaluator.perform_fft(estimated_source, n=n_fft)
@@ -852,11 +852,10 @@ def _project_images(reference_sources, estimated_source, flen, fft_evaluator,
     sproj = np.zeros((nchan, nsampl + flen - 1))
     for k in range(nchan * nsrc):
         for i in range(nchan):
-            sproj += fft_evaluator.perform_convolution(
+            sproj[i] += fft_evaluator.perform_convolution(
                 C[:, k, i].transpose(),
                 reference_sources[k]
             )[:nsampl + flen - 1]
-    # return G only if it was passed in
     if saveg:
         return sproj, G
     else:
