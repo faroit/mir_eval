@@ -34,6 +34,24 @@ def __load_and_stack_wavs(directory):
     return np.vstack(stacked_audio_data)
 
 
+def __generate_multichannel(mono_sig, nchan=2, gain=1.0, reverse=False):
+    ''' Turn a single channel (ie. mono) audio sample into a multichannel
+    (e.g. stereo)
+    Note: to achieve channels of silence pass gain=0
+    '''
+    assert mono_sig.ndim == 2
+    # add the channels dimension
+    input_3d = mono_sig[:,:,np.newaxis]
+    # get the desired number of channels
+    stackin = [input_3d]*nchan
+    # apply the gain to the new channels
+    stackin[1:] = np.multiply(gain, stackin[1:])
+    if reverse:
+        # reverse the new channels
+        stackin[1:] = stackin[1:][:][::-1]
+    return np.dstack(stackin)
+
+
 def __unit_test_empty_input(metric):
     if metric == mir_eval.separation.bss_eval_sources:
         args = [np.array([]), np.array([])]

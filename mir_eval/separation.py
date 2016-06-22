@@ -414,10 +414,10 @@ def bss_eval_images(reference_sources, estimated_sources,
             mean_sir[i] = np.mean(sir[perm, dum])
         popt = perms[np.argmax(mean_sir)]
         idx = (popt, dum)
-        return (sdr[idx], isr[idx], sir[idx], sar[idx], popt)
+        return (sdr[idx], isr[idx], sir[idx], sar[idx], np.asarray(popt))
     else:
         # return the default permutation for compatibility
-        popt = list(range(nsrc))
+        popt = np.arange(nsrc)
         return (sdr, isr, sir, sar, popt)
 
 
@@ -776,7 +776,7 @@ def evaluate(reference_sources, estimated_sources, image=False,
                          'and hop parameters must be supplied.')
     else:
         if image:
-            sdr, sir, sar, perm = util.filter_kwargs(
+            sdr, isr, sir, sar, perm = util.filter_kwargs(
                 bss_eval_images,
                 reference_sources,
                 estimated_sources,
@@ -791,6 +791,8 @@ def evaluate(reference_sources, estimated_sources, image=False,
             )
 
     scores['Source to Distortion'] = sdr.tolist()
+    if image:
+        scores['Image to Spatial'] = isr.tolist()
     scores['Source to Interference'] = sir.tolist()
     scores['Source to Artifact'] = sar.tolist()
     scores['Source permutation'] = perm
