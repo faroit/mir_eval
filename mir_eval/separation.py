@@ -362,16 +362,16 @@ def bss_eval_images(reference_sources, estimated_sources,
 
     """
 
-    # make sure the input is of shape (nsrc, nsampl, nchan)
-    if estimated_sources.ndim != 3 or reference_sources.ndim != 3:
-        raise ValueError('Please ensure input is in the form (nsrc, nsampl,'
-                         'nchan). Cannot infer desired shape from input.')
-
     validate(reference_sources, estimated_sources)
     # If empty matrices were supplied, return empty lists (special case)
     if reference_sources.size == 0 or estimated_sources.size == 0:
         return np.array([]), np.array([]), np.array([]), \
                          np.array([]), np.array([])
+
+    # make sure the input has 3 dimensions
+    if estimated_sources.ndim != 3 or reference_sources.ndim != 3:
+        raise ValueError('Please ensure input is in the form (nsrc, nsampl,'
+                         'nchan). Cannot infer desired shape from input.')
 
     # determine size parameters
     nsrc = estimated_sources.shape[0]
