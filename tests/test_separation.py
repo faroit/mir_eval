@@ -41,7 +41,7 @@ def __generate_multichannel(mono_sig, nchan=2, gain=1.0, reverse=False):
     '''
     assert mono_sig.ndim == 2
     # add the channels dimension
-    input_3d = mono_sig[:,:,np.newaxis]
+    input_3d = mono_sig[:, :, np.newaxis]
     # get the desired number of channels
     stackin = [input_3d]*nchan
     # apply the gain to the new channels
@@ -162,16 +162,26 @@ def test_separation_functions():
     for ref_f, est_f, sco_f in zip(ref_files, est_files, sco_files):
         with open(sco_f, 'r') as f:
             expected_results = json.load(f)
-            expected_scores = expected_results['Sources']
+            expected_sources = expected_results['Sources']
             expected_frames = expected_results['Framewise']
+            expected_images = expected_results['Images']
         # Load in example source separation data
         ref_sources = __load_and_stack_wavs(ref_f)
         est_sources = __load_and_stack_wavs(est_f)
         # Compute scores
-        scores = mir_eval.separation.evaluate(ref_sources, est_sources)
+        source_scores = mir_eval.separation.evaluate(ref_sources, est_sources)
         frame_scores = mir_eval.separation.evaluate(
             ref_sources, est_sources, False,
             expected_frames['win'], expected_frames['hop']
+        )
+        ref_images = __generate_multichannel(ref_sources,
+                                             expected_images['nchan'])
+        est_images = __generate_multichannel(est_sources,
+                                             expected_images['nchan'],
+                                             expected_images['gain'],
+                                             expected_images['reverse'])
+        image_scores = mir_eval.separation.evaluate(
+            ref_images, est_images, True
         )
         # For reasons of coverage
         nose.tools.assert_raises(
@@ -179,12 +189,18 @@ def test_separation_functions():
             expected_frames['win']
         )
         # Compare them
-        for metric in scores:
+        for metric in source_scores:
             # This is a simple hack to make nosetest's messages more useful
-            yield (__check_score, sco_f, metric, scores[metric],
-                   expected_scores[metric])
+            yield (__check_score, sco_f, metric, source_scores[metric],
+                   expected_sources[metric])
         for metric in frame_scores:
             if metric is not 'win' or metric is not 'hop':
                 # This is a simple hack to make nosetest's messages more useful
                 yield (__check_score, sco_f, metric,
                        frame_scores[metric], expected_frames[metric])
+        for metric in image_scores:
+            if metric is not 'nchan' or metric is not 'gain' or \
+                    metric is not 'reverse':
+                # This is a simple hack to make nosetest's messages more useful
+                yield (__check_score, sco_f, metric,
+                       image_scores[metric], expected_images[metric])
