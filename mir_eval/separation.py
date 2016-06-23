@@ -508,7 +508,7 @@ def bss_eval_images(reference_sources, estimated_sources,
                                            np.reshape(estimated_sources[j],
                                                       (nsampl, nchan),
                                                       order='F'),
-                                           j, 512, Gj[j], G, fft_evaluator)
+                                           j, 512, fft_evaluator, Gj[j], G)
             Gj[j] = Gj_temp
             sdr[j], isr[j], sir[j], sar[j] = \
                 _bss_image_crit(s_true, e_spat, e_interf, e_artif)
@@ -783,7 +783,7 @@ def _project(reference_sources, estimated_source, flen, fft_evaluator):
     # Filtering
     sproj = np.zeros(nsampl + flen - 1)
     for i in range(nsrc):
-        sproj[i] += fft_evaluator.perform_convolution(
+        sproj += fft_evaluator.perform_convolution(
             C[:, i],
             reference_sources[i]
         )[:nsampl + flen - 1]
