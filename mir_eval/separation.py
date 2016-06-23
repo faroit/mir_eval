@@ -126,7 +126,16 @@ def validate(reference_sources, estimated_sources):
         warnings.warn("reference_sources is empty, should be of size "
                       "(nsrc, nsample).  sdr, sir, sar, and perm will all "
                       "be empty np.ndarrays")
-    elif np.any(np.all(reference_sources == 0, axis=1)):
+    elif reference_sources.ndim == 2 \
+            and np.any(np.all(reference_sources == 0, axis=1)):
+        raise ValueError('All the reference sources should be non-silent (not '
+                         'all-zeros), but at least one of the reference '
+                         'sources is all 0s, which introduces ambiguity to the'
+                         ' evaluation. (Otherwise we can add infinitely many '
+                         'all-zero sources.)')
+    elif reference_sources.ndim > 2 \
+            and np.any(np.all(np.sum(reference_sources, axis=-1) == 0,
+                              axis=1)):
         raise ValueError('All the reference sources should be non-silent (not '
                          'all-zeros), but at least one of the reference '
                          'sources is all 0s, which introduces ambiguity to the'
@@ -137,26 +146,26 @@ def validate(reference_sources, estimated_sources):
         warnings.warn("estimated_sources is empty, should be of size "
                       "(nsrc, nsample).  sdr, sir, sar, and perm will all "
                       "be empty np.ndarrays")
-    elif np.any(np.all(estimated_sources == 0, axis=1)):
+    elif estimated_sources.ndim == 2 \
+            and np.any(np.all(estimated_sources == 0, axis=1)):
+        raise ValueError('All the estimated sources should be non-silent (not '
+                         'all-zeros), but at least one of the estimated '
+                         'sources is all 0s. Since we require each reference '
+                         'source to be non-silent, having a silent estiamted '
+                         'source will result in an underdetermined system.')
+    elif estimated_sources.ndim > 2 \
+            and np.any(np.all(np.sum(estimated_sources, axis=-1) == 0,
+                              axis=1)):
         raise ValueError('All the estimated sources should be non-silent (not '
                          'all-zeros), but at least one of the estimated '
                          'sources is all 0s. Since we require each reference '
                          'source to be non-silent, having a silent estiamted '
                          'source will result in an underdetermined system.')
 
-    if estimated_sources.shape[0] > MAX_SOURCES:
+    if estimated_sources.shape[0] > MAX_SOURCES or \
+            reference_sources.shape[0] > MAX_SOURCES:
         raise ValueError('The supplied matrices should be of shape (n_sources,'
-                         ' n_samples) but estimated_sources.shape[0] = {} '
-                         'which is greater than '
-                         'mir_eval.separation.MAX_SOURCES = {}.  To override '
-                         'this check, set mir_eval.separation.MAX_SOURCES to '
-                         'a larger value.'.format(estimated_sources.shape[0],
-                                                  MAX_SOURCES))
-
-    if reference_sources.shape[0] > MAX_SOURCES:
-        raise ValueError('The supplied matrices should be of shape (n_sources,'
-                         ' n_samples) but reference_sources.shape[0] = {} '
-                         'which is greater than '
+                         ' n_samples) but n_sources = {} which is greater than'
                          'mir_eval.separation.MAX_SOURCES = {}.  To override '
                          'this check, set mir_eval.separation.MAX_SOURCES to '
                          'a larger value.'.format(estimated_sources.shape[0],
@@ -276,7 +285,7 @@ def bss_eval_sources(reference_sources, estimated_sources,
         return (sdr[idx], sir[idx], sar[idx], np.asarray(popt))
     else:
         # return the default permutation for compatibility
-        popt = np.asarray(list(range(nsrc)))
+        popt = np.arange(nsrc)
         return (sdr, sir, sar, popt)
 
 
@@ -433,16 +442,16 @@ def bss_eval_images(reference_sources, estimated_sources,
 
     """
 
-    # make sure the input is of shape (nsrc, nsampl, nchan)
-    if estimated_sources.ndim != 3 or reference_sources.ndim != 3:
-        raise ValueError('Please ensure input is in the form (nsrc, nsampl,'
-                         'nchan). Cannot infer desired shape from input.')
-
     validate(reference_sources, estimated_sources)
     # If empty matrices were supplied, return empty lists (special case)
     if reference_sources.size == 0 or estimated_sources.size == 0:
         return np.array([]), np.array([]), np.array([]), \
                          np.array([]), np.array([])
+
+    # make sure the input has 3 dimensions
+    if estimated_sources.ndim != 3 or reference_sources.ndim != 3:
+        raise ValueError('Please ensure input is in the form (nsrc, nsampl,'
+                         'nchan). Cannot infer desired shape from input.')
 
     # check if use provided their own fft evaluator
     if fft_evaluator is None:
@@ -514,10 +523,10 @@ def bss_eval_images(reference_sources, estimated_sources,
             mean_sir[i] = np.mean(sir[perm, dum])
         popt = perms[np.argmax(mean_sir)]
         idx = (popt, dum)
-        return (sdr[idx], isr[idx], sir[idx], sar[idx], popt)
+        return (sdr[idx], isr[idx], sir[idx], sar[idx], np.asarray(popt))
     else:
         # return the default permutation for compatibility
-        popt = list(range(nsrc))
+        popt = np.arange(nsrc)
         return (sdr, isr, sir, sar, popt)
 
 
@@ -1004,7 +1013,7 @@ def evaluate(reference_sources, estimated_sources, image=False,
                          'and hop parameters must be supplied.')
     else:
         if image:
-            sdr, sir, sar, perm = util.filter_kwargs(
+            sdr, isr, sir, sar, perm = util.filter_kwargs(
                 bss_eval_images,
                 reference_sources,
                 estimated_sources,
@@ -1019,6 +1028,8 @@ def evaluate(reference_sources, estimated_sources, image=False,
             )
 
     scores['Source to Distortion'] = sdr.tolist()
+    if image:
+        scores['Image to Spatial'] = isr.tolist()
     scores['Source to Interference'] = sir.tolist()
     scores['Source to Artifact'] = sar.tolist()
     scores['Source permutation'] = perm
