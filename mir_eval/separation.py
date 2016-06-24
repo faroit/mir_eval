@@ -126,16 +126,16 @@ def validate(reference_sources, estimated_sources):
         warnings.warn("reference_sources is empty, should be of size "
                       "(nsrc, nsample).  sdr, sir, sar, and perm will all "
                       "be empty np.ndarrays")
-    elif reference_sources.ndim == 2 \
-            and np.any(np.all(reference_sources == 0, axis=1)):
+    elif (reference_sources.ndim == 2 and
+            np.any(np.all(reference_sources == 0, axis=1))):
         raise ValueError('All the reference sources should be non-silent (not '
                          'all-zeros), but at least one of the reference '
                          'sources is all 0s, which introduces ambiguity to the'
                          ' evaluation. (Otherwise we can add infinitely many '
                          'all-zero sources.)')
-    elif reference_sources.ndim > 2 \
-            and np.any(np.all(np.sum(reference_sources, axis=-1) == 0,
-                              axis=1)):
+    elif (reference_sources.ndim > 2 and
+            np.any(np.all(np.sum(reference_sources, axis=-1) == 0,
+                          axis=1))):
         raise ValueError('All the reference sources should be non-silent (not '
                          'all-zeros), but at least one of the reference '
                          'sources is all 0s, which introduces ambiguity to the'
@@ -146,24 +146,24 @@ def validate(reference_sources, estimated_sources):
         warnings.warn("estimated_sources is empty, should be of size "
                       "(nsrc, nsample).  sdr, sir, sar, and perm will all "
                       "be empty np.ndarrays")
-    elif estimated_sources.ndim == 2 \
-            and np.any(np.all(estimated_sources == 0, axis=1)):
+    elif (estimated_sources.ndim == 2 and
+            np.any(np.all(estimated_sources == 0, axis=1))):
         raise ValueError('All the estimated sources should be non-silent (not '
                          'all-zeros), but at least one of the estimated '
                          'sources is all 0s. Since we require each reference '
                          'source to be non-silent, having a silent estiamted '
                          'source will result in an underdetermined system.')
-    elif estimated_sources.ndim > 2 \
-            and np.any(np.all(np.sum(estimated_sources, axis=-1) == 0,
-                              axis=1)):
+    elif (estimated_sources.ndim > 2 and
+            np.any(np.all(np.sum(estimated_sources, axis=-1) == 0,
+                          axis=1))):
         raise ValueError('All the estimated sources should be non-silent (not '
                          'all-zeros), but at least one of the estimated '
                          'sources is all 0s. Since we require each reference '
                          'source to be non-silent, having a silent estiamted '
                          'source will result in an underdetermined system.')
 
-    if estimated_sources.shape[0] > MAX_SOURCES or \
-            reference_sources.shape[0] > MAX_SOURCES:
+    if (estimated_sources.shape[0] > MAX_SOURCES or
+            reference_sources.shape[0] > MAX_SOURCES):
         raise ValueError('The supplied matrices should be of shape (n_sources,'
                          ' n_samples) but n_sources = {} which is greater than'
                          'mir_eval.separation.MAX_SOURCES = {}.  To override '
