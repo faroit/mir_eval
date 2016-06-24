@@ -53,8 +53,8 @@ def __generate_multichannel(mono_sig, nchan=2, gain=1.0, reverse=False):
 
 
 def __unit_test_empty_input(metric):
-    if metric == mir_eval.separation.bss_eval_sources \
-            or metric == mir_eval.separation.bss_eval_images:
+    if (metric == mir_eval.separation.bss_eval_sources or
+            metric == mir_eval.separation.bss_eval_images):
         args = [np.array([]), np.array([])]
     elif metric == mir_eval.separation.bss_eval_sources_framewise:
         args = [np.array([]), np.array([]), 40, 20]
@@ -84,8 +84,8 @@ def __unit_test_silent_input(metric):
                                  np.random.random_sample((2, 100))))
         est_sources = np.vstack((np.zeros(100),
                                  np.random.random_sample((2, 100))))
-    if metric == mir_eval.separation.bss_eval_sources \
-            or metric == mir_eval.separation.bss_eval_images:
+    if (metric == mir_eval.separation.bss_eval_sources or
+            metric == mir_eval.separation.bss_eval_images):
         nose.tools.assert_raises(ValueError, metric, ref_sources[:2],
                                  est_sources[1:])
         nose.tools.assert_raises(ValueError, metric, ref_sources[1:],
@@ -106,8 +106,8 @@ def __unit_test_incompatible_shapes(metric):
     else:
         sources_4 = np.random.random_sample((4, 100))
         sources_3 = np.random.random_sample((3, 100))
-    if metric == mir_eval.separation.bss_eval_sources \
-            or metric == mir_eval.separation.bss_eval_images:
+    if (metric == mir_eval.separation.bss_eval_sources or
+            metric == mir_eval.separation.bss_eval_images):
         args1 = [sources_3, sources_4]
         args2 = [sources_4, sources_3]
     elif metric == mir_eval.separation.bss_eval_sources_framewise:
@@ -222,8 +222,8 @@ def test_separation_functions():
                 yield (__check_score, sco_f, metric,
                        frame_scores[metric], expected_frames[metric])
         for metric in image_scores:
-            if metric is not 'nchan' or metric is not 'gain' or \
-                    metric is not 'reverse':
+            if (metric is not 'nchan' or metric is not 'gain' or
+                    metric is not 'reverse'):
                 # This is a simple hack to make nosetest's messages more useful
                 yield (__check_score, sco_f, metric,
                        image_scores[metric], expected_images[metric])
