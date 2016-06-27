@@ -545,7 +545,7 @@ def _project(reference_sources, estimated_source, flen):
     estimated_source = np.hstack((estimated_source, np.zeros(flen - 1)))
     n_fft = int(2**np.ceil(np.log2(nsampl + flen - 1.)))
 
-    if nsrc > 1:
+    if nsrc > 1: # the higher dimensional fft doesn't give results that agree with scipy
         sf = scipy.fftpack.fft(reference_sources, n=n_fft, axis=1)
         estimated_source, _ = scipy.fftpack.basic._fix_shape(estimated_source, n_fft, -1)
         estimated_source_gpu = gpuarray.to_gpu(estimated_source.astype(np.float32))
@@ -595,7 +595,16 @@ def _project(reference_sources, estimated_source, flen):
     for i in range(nsrc):
         for j in range(nsrc):
             ssf = sf[i] * np.conj(sf[j])
-            ssf = np.real(scipy.fftpack.ifft(ssf))
+
+            #ssf = np.real(scipy.fftpack.ifft(ssf))
+            ssf_gpu = gpuarray.to_gpu(ssf.astype(np.float32))
+            out_gpu = gpuarray.empty(ssf.shape, np.complex64)
+            ssf_plan = scfft.Plan(ssf.shape, np.float32, np.complex64)
+            scfft.fft(ssf_gpu, out_gpu, ssf_plan)
+            ssf = out_gpu.get()
+            ssf = np.concatenate((ssf[0:len(ssf)/2+1],
+                                  np.conj(np.flipud(ssf[1:len(ssf)/2]))))
+
             # process inverse
             ss = toeplitz(np.hstack((ssf[0], ssf[-1:-flen:-1])),
                           r=ssf[:flen])
@@ -606,7 +615,16 @@ def _project(reference_sources, estimated_source, flen):
     D = np.zeros(nsrc * flen)
     for i in range(nsrc):
         ssef = sf[i] * np.conj(sef)
-        ssef = np.real(scipy.fftpack.ifft(ssef))
+
+        #ssef = np.real(scipy.fftpack.ifft(ssef))
+        ssef_gpu = gpuarray.to_gpu(ssef.astype(np.float32))
+        out_gpu = gpuarray.empty(ssef.shape, np.complex64)
+        ssef_plan = scfft.Plan(ssef.shape, np.float32, np.complex64)
+        scfft.fft(ssef_gpu, out_gpu, ssef_plan)
+        ssef = out_gpu.get()
+        ssef = np.concatenate((ssef[0:len(ssef)/2+1],
+                              np.conj(np.flipud(ssef[1:len(ssef)/2]))))
+
         D[i * flen: (i+1) * flen] = np.hstack((ssef[0], ssef[-1:-flen:-1]))
 
     # Computing projection
