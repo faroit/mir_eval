@@ -562,6 +562,15 @@ def _project(reference_sources, estimated_source, flen):
 
     sf = np.atleast_2d(sf_gpu.get())
     sef = sef_gpu.get()
+
+    sf_old = scipy.fftpack.fft(reference_sources, n=n_fft, axis=1)
+    sef_old = scipy.fftpack.fft(estimated_source, n=n_fft)
+
+    if not np.allclose(sf, sf_old):
+        import ipdb; ipdb.set_trace()
+    if not np.allclose(sef, sef_old):
+        import ipdb; ipdb.set_trace()
+        
     # inner products between delayed versions of reference_sources
     G = np.zeros((nsrc * flen, nsrc * flen))
     for i in range(nsrc):
