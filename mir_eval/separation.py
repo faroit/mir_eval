@@ -562,21 +562,22 @@ def _project(reference_sources, estimated_source, flen):
 
     # get the resulfs from the gpu and correct the half zeroes issue
     sf = sf_gpu.get()
-    import ipdb; ipdb.set_trace()
-    sf_sym = np.concatenate((sf[:][0:len(sf)/2+1],
-                         np.conj(np.fliplr(sf)[:][len(sf)/2:-1])))
+    #sf_old = scipy.fftpack.fft(reference_sources, n=n_fft, axis=1)
+    #import ipdb; ipdb.set_trace()
+    sf_sym = np.concatenate((sf[:, 0:np.shape(sf)[1]/2+1],
+                         np.conj(np.fliplr(sf)[:, np.shape(sf)[1]/2:-1])), axis=1)
     sf = np.atleast_2d(sf_sym)
     sef = sef_gpu.get()
     sef = np.concatenate((sef[0:len(sef)/2+1],
                           np.conj(np.flipud(sef[1:len(sef)/2]))))
 
-    sf_old = scipy.fftpack.fft(reference_sources, n=n_fft, axis=1)
-    sef_old = scipy.fftpack.fft(estimated_source, n=n_fft)
+    #sf_old = scipy.fftpack.fft(reference_sources, n=n_fft, axis=1)
+    #sef_old = scipy.fftpack.fft(estimated_source, n=n_fft)
 
-    if not np.allclose(sf, sf_old, rtol=0, atol=1e-2):
-        import ipdb; ipdb.set_trace()
-    if not np.allclose(sef, sef_old, rtol=0, atol=1e-2):
-        import ipdb; ipdb.set_trace()
+    #if not np.allclose(sf, sf_old, rtol=0, atol=1e-2):
+    #    import ipdb; ipdb.set_trace()
+    #if not np.allclose(sef, sef_old, rtol=0, atol=1e-2):
+    #    import ipdb; ipdb.set_trace()
 
     # inner products between delayed versions of reference_sources
     G = np.zeros((nsrc * flen, nsrc * flen))
