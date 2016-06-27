@@ -562,9 +562,10 @@ def _project(reference_sources, estimated_source, flen):
 
     # get the resulfs from the gpu and correct the half zeroes issue
     sf = sf_gpu.get()
-    sf = np.concatenate((sf[0:len(sf)/2+1],
-                         np.conj(np.flipud(sf[1:len(sf)/2]))))
-    sf = np.atleast_2d(sf)
+    import ipdb; ipdb.set_trace()
+    sf_sym = np.concatenate((sf[:][0:len(sf)/2+1],
+                         np.conj(np.fliplr(sf)[:][len(sf)/2:-1])))
+    sf = np.atleast_2d(sf_sym)
     sef = sef_gpu.get()
     sef = np.concatenate((sef[0:len(sef)/2+1],
                           np.conj(np.flipud(sef[1:len(sef)/2]))))
