@@ -560,17 +560,23 @@ def _project(reference_sources, estimated_source, flen):
     scfft.fft(reference_sources_gpu, sf_gpu, sf_plan)
     scfft.fft(estimated_source_gpu, sef_gpu, sef_plan)
 
-    sf = np.atleast_2d(sf_gpu.get())
+    # get the resulfs from the gpu and correct the half zeroes issue
+    sf = sf_gpu.get()
+    sf = np.concatenate(sf[0:len(sf)/2+1],
+                        np.conj(np.flipud(sf[1:len(sf)/2])))
+    sf = np.atleast_2d(sf)
     sef = sef_gpu.get()
+    sef = np.concatenate(sef[0:len(sef)/2+1],
+                         np.conj(np.flipud(sef[1:len(sef)/2])))
 
     sf_old = scipy.fftpack.fft(reference_sources, n=n_fft, axis=1)
     sef_old = scipy.fftpack.fft(estimated_source, n=n_fft)
 
-    if not np.allclose(sf, sf_old):
+    if not np.allclose(sf, sf_old, rtol=0, atol=1e-2):
         import ipdb; ipdb.set_trace()
-    if not np.allclose(sef, sef_old):
+    if not np.allclose(sef, sef_old, rtol=0, atol=1e-2):
         import ipdb; ipdb.set_trace()
-        
+
     # inner products between delayed versions of reference_sources
     G = np.zeros((nsrc * flen, nsrc * flen))
     for i in range(nsrc):
