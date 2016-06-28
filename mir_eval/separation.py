@@ -749,17 +749,20 @@ def _project(reference_sources, estimated_source, flen, fft_evaluator):
     estimated_source = np.hstack((estimated_source, np.zeros(flen - 1)))
     n_fft = int(2**np.ceil(np.log2(nsampl + flen - 1.)))
     # perform an fft of the reference sources
-    fft_evaluator.plan_fft('fft_sf', reference_sources, 'forward')
+    fft_evaluator.plan_fft('fft_sf', reference_sources, 'forward',
+                           'real', 'complex')
     sf = fft_evaluator.perform_fft(reference_sources, n=n_fft, axis=1)
     # perform an fft of the estimated sources
-    fft_evaluator.plan_fft('fft_sef', estimated_source, 'forward')
+    fft_evaluator.plan_fft('fft_sef', estimated_source, 'forward',
+                           'real', 'complex')
     sef = fft_evaluator.perform_fft(estimated_source, n=n_fft)
     # inner products between delayed versions of reference_sources
     G = np.zeros((nsrc * flen, nsrc * flen))
     for i in range(nsrc):
         for j in range(nsrc):
             ssf = sf[i] * np.conj(sf[j])
-            fft_evaluator.plan_fft('fft_ssf', ssf, 'inverse')
+            fft_evaluator.plan_fft('fft_ssf', ssf, 'inverse',
+                                   'complex', 'complex')
             ssf = np.real(fft_evaluator.perform_ifft(ssf))
             ss = toeplitz(np.hstack((ssf[0], ssf[-1:-flen:-1])),
                           r=ssf[:flen])
@@ -770,7 +773,8 @@ def _project(reference_sources, estimated_source, flen, fft_evaluator):
     D = np.zeros(nsrc * flen)
     for i in range(nsrc):
         ssef = sf[i] * np.conj(sef)
-        fft_evaluator.plan_fft('fft_ssef', ssef, 'inverse')
+        fft_evaluator.plan_fft('fft_ssef', ssef, 'inverse',
+                               'complex', 'complex')
         ssef = np.real(fft_evaluator.perform_ifft(ssef))
         D[i * flen: (i+1) * flen] = np.hstack((ssef[0], ssef[-1:-flen:-1]))
 
@@ -807,10 +811,12 @@ def _project_images(reference_sources, estimated_source, flen, fft_evaluator,
         np.hstack((estimated_source.transpose(), np.zeros((nchan, flen - 1))))
     n_fft = int(2**np.ceil(np.log2(nsampl + flen - 1.)))
     # perform an fft of the reference sources
-    fft_evaluator.plan_fft('fft_sf', reference_sources, 'forward')
+    fft_evaluator.plan_fft('fft_sf', reference_sources, 'forward',
+                           'real', 'complex')
     sf = fft_evaluator.perform_fft(reference_sources, n=n_fft, axis=1)
     # perform an fft of the estimated sources
-    fft_evaluator.plan_fft('fft_sef', estimated_source, 'forward')
+    fft_evaluator.plan_fft('fft_sef', estimated_source, 'forward',
+                           'real', 'complex')
     sef = fft_evaluator.perform_fft(estimated_source, n=n_fft)
     # inner products between delayed versions of reference_sources
     if G is None:
@@ -819,7 +825,8 @@ def _project_images(reference_sources, estimated_source, flen, fft_evaluator,
         for i in range(nchan * nsrc):
             for j in range(i+1):
                 ssf = sf[i] * np.conj(sf[j])
-                fft_evaluator.plan_fft('fft_ssf', ssf, 'inverse')
+                fft_evaluator.plan_fft('fft_ssf', ssf, 'inverse',
+                                       'complex', 'complex')
                 ssf = np.real(fft_evaluator.perform_ifft(ssf))
                 ss = toeplitz(np.hstack((ssf[0], ssf[-1:-flen:-1])),
                               r=ssf[:flen])
@@ -832,7 +839,8 @@ def _project_images(reference_sources, estimated_source, flen, fft_evaluator,
             for i in range(nchan * nsrc):
                 for j in range(i+1):
                     ssf = sf[i] * np.conj(sf[j])
-                    fft_evaluator.plan_fft('fft_ssf', ssf, 'inverse')
+                    fft_evaluator.plan_fft('fft_ssf', ssf, 'inverse',
+                                           'complex', 'complex')
                     ssf = np.real(fft_evaluator.perform_ifft(ssf))
                     ss = toeplitz(np.hstack((ssf[0], ssf[-1:-flen:-1])),
                                   r=ssf[:flen])
@@ -845,7 +853,8 @@ def _project_images(reference_sources, estimated_source, flen, fft_evaluator,
     for k in range(nchan * nsrc):
         for i in range(nchan):
             ssef = sf[k] * np.conj(sef[i])
-            fft_evaluator.plan_fft('fft_ssef', ssef, 'inverse')
+            fft_evaluator.plan_fft('fft_ssef', ssef, 'inverse',
+                                   'complex', 'complex')
             ssef = np.real(fft_evaluator.perform_ifft(ssef))
             D[k * flen: (k+1) * flen, i] = \
                 np.hstack((ssef[0], ssef[-1:-flen:-1])).transpose()
