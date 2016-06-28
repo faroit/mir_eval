@@ -636,8 +636,38 @@ def _project(reference_sources, estimated_source, flen):
     # Filtering
     sproj = np.zeros(nsampl + flen - 1)
     for i in range(nsrc):
-        sproj += fftconvolve(C[:, i], reference_sources[i])[:nsampl + flen - 1]
+        sproj += _cuda_convolve(C[:, i], reference_sources[i])[:nsampl + flen - 1]
     return sproj
+
+
+def _cuda_convolve(tensor1, tensor2):
+    tensor1_gpu = gpuarray.to_gpu(tensor1.astype(np.float32))
+    fft1_gpu = gpuarray.empty(tensor1.shape, np.float32)
+    fft1_plan = scfft.Plan(tensor1.shape, np.float32, np.float32)
+    scfft.fft(tensor1_gpu, fft1_gpu, fft1_plan)
+    fft1_gpu = fft1_gpu.get()
+    fft1_gpu = np.concatenate((fft1_gpu[0:len(fft1_gpu)/2+1],
+                          np.conj(np.flipud(fft1_gpu[1:len(fft1_gpu)/2]))))
+
+    tensor2_gpu = gpuarray.to_gpu(tensor2.astype(np.float32))
+    fft2_gpu = gpuarray.empty(tensor2.shape, np.float32)
+    fft2_plan = scfft.Plan(tensor2.shape, np.float32, np.float32)
+    scfft.fft(tensor2_gpu, fft2_gpu, fft2_plan)
+    fft2_gpu = fft2_gpu.get()
+    fft2_gpu = np.concatenate((fft2_gpu[0:len(fft2_gpu)/2+1],
+                          np.conj(np.flipud(fft2_gpu[1:len(fft2_gpu)/2]))))
+
+    inter = np.multiply(fft1_gpu, fft2_gpu)
+
+    tensor3_gpu = gpuarray.to_gpu(inter.astype(np.float32))
+    fft3_gpu = gpuarray.empty(inter.shape, np.float32)
+    fft3_plan = scfft.Plan(tensor3.shape, np.float32, np.float32)
+    scfft.fft(tensor3_gpu, fft3_gpu, fft3_plan)
+    fft3_gpu = fft3_gpu.get()
+    fft3_gpu = np.concatenate((fft3_gpu[0:len(fft3_gpu)/2+1],
+                          np.conj(np.flipud(fft3_gpu[1:len(fft3_gpu)/2]))))
+
+    return fft3_gpu
 
 
 def _project_images(reference_sources, estimated_source, flen, G=None):
