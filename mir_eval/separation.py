@@ -545,49 +545,39 @@ def _project(reference_sources, estimated_source, flen):
     estimated_source = np.hstack((estimated_source, np.zeros(flen - 1)))
     n_fft = int(2**np.ceil(np.log2(nsampl + flen - 1.)))
 
-    # if nsrc > 1: # the higher dimensional fft doesn't give results that agree with scipy
-    #     sf = scipy.fftpack.fft(reference_sources, n=n_fft, axis=1)
-    #     estimated_source, _ = scipy.fftpack.basic._fix_shape(estimated_source, n_fft, -1)
-    #     estimated_source_gpu = gpuarray.to_gpu(estimated_source.astype(np.float32))
-    #     sef_gpu = gpuarray.empty(n_fft, np.complex64)
-    #     sef_plan = scfft.Plan(estimated_source.shape, np.float32, np.complex64)
-    #     scfft.fft(estimated_source_gpu, sef_gpu, sef_plan)
-    #     sef = sef_gpu.get()
-    #     sef = np.concatenate((sef[0:len(sef)/2+1],
-    #                           np.conj(np.flipud(sef[1:len(sef)/2]))))
-    # else:
-    reference_sources, _ = scipy.fftpack.basic._fix_shape(reference_sources, n_fft, -1) #prev 1
+    if nsrc > 1: # the higher dimensional fft doesn't give results that agree with scipy
+        sf = scipy.fftpack.fft(reference_sources, n=n_fft, axis=1)
+        reference_sources, _ = scipy.fftpack.basic._fix_shape(reference_sources, n_fft, -1) #prev 1
+    else:
+        reference_sources, _ = scipy.fftpack.basic._fix_shape(reference_sources, n_fft, -1) #prev 1
+        reference_sources_gpu = gpuarray.to_gpu(reference_sources.astype(np.float32))
+        sf_gpu = gpuarray.empty(reference_sources.shape, np.complex64)
+        sf_plan = scfft.Plan(reference_sources.shape, np.float32, np.complex64)
+        scfft.fft(reference_sources_gpu, sf_gpu, sf_plan)
+
+        # get the resulfs from the gpu and correct the half zeroes
+        sf = sf_gpu.get()
+        sf_sym = np.concatenate((sf[:, 0:np.shape(sf)[1]/2+1],
+                             np.conj(np.fliplr(sf)[:, np.shape(sf)[1]/2:-1])), axis=1)
+        sf = np.atleast_2d(sf_sym)
+
     estimated_source, _ = scipy.fftpack.basic._fix_shape(estimated_source, n_fft, -1)
-
-    reference_sources_gpu = gpuarray.to_gpu(reference_sources.astype(np.float32))
     estimated_source_gpu = gpuarray.to_gpu(estimated_source.astype(np.float32))
-
-    sf_gpu = gpuarray.empty(reference_sources.shape, np.complex64)
     sef_gpu = gpuarray.empty(n_fft, np.complex64)
-
-    sf_plan = scfft.Plan(reference_sources.shape, np.float32, np.complex64)
     sef_plan = scfft.Plan(estimated_source.shape, np.float32, np.complex64)
-
-    scfft.fft(reference_sources_gpu, sf_gpu, sf_plan)
     scfft.fft(estimated_source_gpu, sef_gpu, sef_plan)
 
-    # get the resulfs from the gpu and correct the half zeroes issue
-    sf = sf_gpu.get()
-    #sf_old = scipy.fftpack.fft(reference_sources, n=n_fft, axis=1)
-    #import ipdb; ipdb.set_trace()
-    sf_sym = np.concatenate((sf[:, 0:np.shape(sf)[1]/2+1],
-                         np.conj(np.fliplr(sf)[:, np.shape(sf)[1]/2:-1])), axis=1)
-    sf = np.atleast_2d(sf_sym)
+    # get the results from the gpu and correct the half zeroes
     sef = sef_gpu.get()
     sef = np.concatenate((sef[0:len(sef)/2+1],
                           np.conj(np.flipud(sef[1:len(sef)/2]))))
 
-    #sf_old = scipy.fftpack.fft(reference_sources, n=n_fft, axis=1)
-    #sef_old = scipy.fftpack.fft(estimated_source, n=n_fft)
+    # sf_old = scipy.fftpack.fft(reference_sources, n=n_fft, axis=1)
+    # sef_old = scipy.fftpack.fft(estimated_source, n=n_fft)
 
-    #if not np.allclose(sf, sf_old, rtol=0, atol=1e-2):
+    # if not np.allclose(sf, sf_old, rtol=0, atol=1e-2):
     #    import ipdb; ipdb.set_trace()
-    #if not np.allclose(sef, sef_old, rtol=0, atol=1e-2):
+    # if not np.allclose(sef, sef_old, rtol=0, atol=1e-2):
     #    import ipdb; ipdb.set_trace()
 
     # inner products between delayed versions of reference_sources
@@ -643,33 +633,53 @@ def _project(reference_sources, estimated_source, flen):
 
 
 def _cuda_convolve(tensor1, tensor2):
+    n_fft = max(list(np.shape(tensor1)) + list(np.shape(tensor2)))
+
     tensor1_gpu = gpuarray.to_gpu(tensor1.astype(np.float32))
-    fft1_gpu = gpuarray.empty(tensor1.shape, np.float32)
-    fft1_plan = scfft.Plan(tensor1.shape, np.float32, np.float32)
+    fft1_gpu = gpuarray.empty(n_fft, np.complex64)
+    fft1_plan = scfft.Plan(n_fft, np.float32, np.complex64)
     scfft.fft(tensor1_gpu, fft1_gpu, fft1_plan)
     fft1_gpu = fft1_gpu.get()
     fft1_gpu = np.concatenate((fft1_gpu[0:len(fft1_gpu)/2+1],
                           np.conj(np.flipud(fft1_gpu[1:len(fft1_gpu)/2]))))
+    fft1 = scipy.fftpack.fft(tensor1, n=n_fft)
 
     tensor2_gpu = gpuarray.to_gpu(tensor2.astype(np.float32))
-    fft2_gpu = gpuarray.empty(tensor2.shape, np.float32)
-    fft2_plan = scfft.Plan(tensor2.shape, np.float32, np.float32)
+    fft2_gpu = gpuarray.empty(n_fft, np.complex64)
+    fft2_plan = scfft.Plan(n_fft, np.float32, np.complex64)
     scfft.fft(tensor2_gpu, fft2_gpu, fft2_plan)
     fft2_gpu = fft2_gpu.get()
     fft2_gpu = np.concatenate((fft2_gpu[0:len(fft2_gpu)/2+1],
                           np.conj(np.flipud(fft2_gpu[1:len(fft2_gpu)/2]))))
+    fft2 = scipy.fftpack.fft(tensor2, n=n_fft)
+
+    if (not np.allclose(fft1, fft1_gpu, rtol=0, atol=1e-2)
+        and not np.allclose(fft2, fft2_gpu, rtol=0, atol=1e-2)):
+        import ipdb; ipdb.set_trace()
 
     inter = np.multiply(fft1_gpu, fft2_gpu)
+    inter_test = np.multiply(fft1, fft2)
 
-    tensor3_gpu = gpuarray.to_gpu(inter.astype(np.float32))
-    fft3_gpu = gpuarray.empty(inter.shape, np.float32)
-    fft3_plan = scfft.Plan(tensor3.shape, np.float32, np.float32)
-    scfft.fft(tensor3_gpu, fft3_gpu, fft3_plan)
-    fft3_gpu = fft3_gpu.get()
+    if not np.allclose(inter, inter_test, atol=0, rtol=1e-2):
+        import ipdb; ipdb.set_trace()
+
+    tensor3_gpu = gpuarray.to_gpu(inter.astype(np.complex64))
+    fft3_gpu = gpuarray.empty(n_fft, np.complex64)
+    fft3_plan = scfft.Plan(n_fft, np.complex64,  np.complex64)
+    scfft.ifft(tensor3_gpu, fft3_gpu, fft3_plan)
+    fft3_gpu = np.real(fft3_gpu.get())
     fft3_gpu = np.concatenate((fft3_gpu[0:len(fft3_gpu)/2+1],
                           np.conj(np.flipud(fft3_gpu[1:len(fft3_gpu)/2]))))
 
     return fft3_gpu
+
+
+def _fft_convolve(tensor1, tensor2):
+    n_fft = max(list(np.shape(tensor1)) + list(np.shape(tensor2)))
+    fft1 = scipy.fftpack.fft(tensor1, n=n_fft)
+    fft2 = scipy.fftpack.fft(tensor2, n=n_fft)
+    inter = np.multiply(fft1, fft2)
+    return np.real(scipy.fftpack.ifft(inter))
 
 
 def _project_images(reference_sources, estimated_source, flen, G=None):
