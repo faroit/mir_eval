@@ -545,42 +545,42 @@ def _project(reference_sources, estimated_source, flen):
     estimated_source = np.hstack((estimated_source, np.zeros(flen - 1)))
     n_fft = int(2**np.ceil(np.log2(nsampl + flen - 1.)))
 
-    if nsrc > 1: # the higher dimensional fft doesn't give results that agree with scipy
-        sf = scipy.fftpack.fft(reference_sources, n=n_fft, axis=1)
-        estimated_source, _ = scipy.fftpack.basic._fix_shape(estimated_source, n_fft, -1)
-        estimated_source_gpu = gpuarray.to_gpu(estimated_source.astype(np.float32))
-        sef_gpu = gpuarray.empty(n_fft, np.complex64)
-        sef_plan = scfft.Plan(estimated_source.shape, np.float32, np.complex64)
-        scfft.fft(estimated_source_gpu, sef_gpu, sef_plan)
-        sef = sef_gpu.get()
-        sef = np.concatenate((sef[0:len(sef)/2+1],
-                              np.conj(np.flipud(sef[1:len(sef)/2]))))
-    else:
-        reference_sources, _ = scipy.fftpack.basic._fix_shape(reference_sources, n_fft, 1)
-        estimated_source, _ = scipy.fftpack.basic._fix_shape(estimated_source, n_fft, -1)
+    # if nsrc > 1: # the higher dimensional fft doesn't give results that agree with scipy
+    #     sf = scipy.fftpack.fft(reference_sources, n=n_fft, axis=1)
+    #     estimated_source, _ = scipy.fftpack.basic._fix_shape(estimated_source, n_fft, -1)
+    #     estimated_source_gpu = gpuarray.to_gpu(estimated_source.astype(np.float32))
+    #     sef_gpu = gpuarray.empty(n_fft, np.complex64)
+    #     sef_plan = scfft.Plan(estimated_source.shape, np.float32, np.complex64)
+    #     scfft.fft(estimated_source_gpu, sef_gpu, sef_plan)
+    #     sef = sef_gpu.get()
+    #     sef = np.concatenate((sef[0:len(sef)/2+1],
+    #                           np.conj(np.flipud(sef[1:len(sef)/2]))))
+    # else:
+    reference_sources, _ = scipy.fftpack.basic._fix_shape(reference_sources, n_fft, -1) #prev 1
+    estimated_source, _ = scipy.fftpack.basic._fix_shape(estimated_source, n_fft, -1)
 
-        reference_sources_gpu = gpuarray.to_gpu(reference_sources.astype(np.float32))
-        estimated_source_gpu = gpuarray.to_gpu(estimated_source.astype(np.float32))
+    reference_sources_gpu = gpuarray.to_gpu(reference_sources.astype(np.float32))
+    estimated_source_gpu = gpuarray.to_gpu(estimated_source.astype(np.float32))
 
-        sf_gpu = gpuarray.empty(reference_sources.shape, np.complex64)
-        sef_gpu = gpuarray.empty(n_fft, np.complex64)
+    sf_gpu = gpuarray.empty(reference_sources.shape, np.complex64)
+    sef_gpu = gpuarray.empty(n_fft, np.complex64)
 
-        sf_plan = scfft.Plan(reference_sources.shape, np.float32, np.complex64)
-        sef_plan = scfft.Plan(estimated_source.shape, np.float32, np.complex64)
+    sf_plan = scfft.Plan(reference_sources.shape, np.float32, np.complex64)
+    sef_plan = scfft.Plan(estimated_source.shape, np.float32, np.complex64)
 
-        scfft.fft(reference_sources_gpu, sf_gpu, sf_plan)
-        scfft.fft(estimated_source_gpu, sef_gpu, sef_plan)
+    scfft.fft(reference_sources_gpu, sf_gpu, sf_plan)
+    scfft.fft(estimated_source_gpu, sef_gpu, sef_plan)
 
-        # get the resulfs from the gpu and correct the half zeroes issue
-        sf = sf_gpu.get()
-        #sf_old = scipy.fftpack.fft(reference_sources, n=n_fft, axis=1)
-        #import ipdb; ipdb.set_trace()
-        sf_sym = np.concatenate((sf[:, 0:np.shape(sf)[1]/2+1],
-                             np.conj(np.fliplr(sf)[:, np.shape(sf)[1]/2:-1])), axis=1)
-        sf = np.atleast_2d(sf_sym)
-        sef = sef_gpu.get()
-        sef = np.concatenate((sef[0:len(sef)/2+1],
-                              np.conj(np.flipud(sef[1:len(sef)/2]))))
+    # get the resulfs from the gpu and correct the half zeroes issue
+    sf = sf_gpu.get()
+    #sf_old = scipy.fftpack.fft(reference_sources, n=n_fft, axis=1)
+    #import ipdb; ipdb.set_trace()
+    sf_sym = np.concatenate((sf[:, 0:np.shape(sf)[1]/2+1],
+                         np.conj(np.fliplr(sf)[:, np.shape(sf)[1]/2:-1])), axis=1)
+    sf = np.atleast_2d(sf_sym)
+    sef = sef_gpu.get()
+    sef = np.concatenate((sef[0:len(sef)/2+1],
+                          np.conj(np.flipud(sef[1:len(sef)/2]))))
 
     #sf_old = scipy.fftpack.fft(reference_sources, n=n_fft, axis=1)
     #sef_old = scipy.fftpack.fft(estimated_source, n=n_fft)
