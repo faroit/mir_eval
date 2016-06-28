@@ -638,7 +638,7 @@ def _project(reference_sources, estimated_source, flen):
     # Filtering
     sproj = np.zeros(nsampl + flen - 1)
     for i in range(nsrc):
-        sproj += _cuda_convolve(C[:, i], reference_sources[i])[:nsampl + flen - 1]
+        sproj += fftconvolve(C[:, i], reference_sources[i])[:nsampl + flen - 1]
     return sproj
 
 
