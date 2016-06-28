@@ -600,7 +600,7 @@ def _project(reference_sources, estimated_source, flen):
             ssf_gpu = gpuarray.to_gpu(ssf.astype(np.complex64))
             out_gpu = gpuarray.empty(ssf.shape, np.complex64)
             ssf_plan = scfft.Plan(ssf.shape, np.complex64, np.complex64)
-            scfft.ifft(ssf_gpu, out_gpu, ssf_plan)
+            scfft.fft(ssf_gpu, out_gpu, ssf_plan)
             ssf = out_gpu.get()
             ssf = np.concatenate((ssf[0:len(ssf)/2+1],
                                   np.conj(np.flipud(ssf[1:len(ssf)/2]))))
@@ -621,7 +621,7 @@ def _project(reference_sources, estimated_source, flen):
         ssef_gpu = gpuarray.to_gpu(ssef.astype(np.complex64))
         out_gpu = gpuarray.empty(ssef.shape, np.complex64)
         ssef_plan = scfft.Plan(ssef.shape, np.complex64, np.complex64)
-        scfft.ifft(ssef_gpu, out_gpu, ssef_plan)
+        scfft.fft(ssef_gpu, out_gpu, ssef_plan)
         ssef = out_gpu.get()
         ssef = np.concatenate((ssef[0:len(ssef)/2+1],
                               np.conj(np.flipud(ssef[1:len(ssef)/2]))))
