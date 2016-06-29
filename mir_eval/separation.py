@@ -43,6 +43,7 @@ from . import util
 import pycuda.autoinit
 import pycuda.gpuarray as gpuarray
 import skcuda.fft as scfft
+import skcuda.linalg as sclin
 
 
 # The maximum allowable number of sources (prevents insane computational load)
@@ -678,6 +679,13 @@ def _cuda_convolve(tensor1, tensor2):
     #     import ipdb; ipdb.set_trace()
 
     return fft3_gpu
+
+
+def _cuda_solve(tensor1, tensor2): # requires getting the CULA library installed
+    a_gpu = gpuarray.to_gpu(tensor1.astype(np.float64))
+    b_gpu = gpuarray.to_gpu(tensor2.astype(np.float64))
+    sclin.cho_solve(a_gpu, b_gpu)
+    return b_gpu.get()
 
 
 def _fft_convolve(tensor1, tensor2):
