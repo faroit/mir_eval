@@ -574,10 +574,10 @@ def _project(reference_sources, estimated_source, flen):
 
     # sf_old = scipy.fftpack.fft(reference_sources, n=n_fft, axis=1)
     # sef_old = scipy.fftpack.fft(estimated_source, n=n_fft)
-
-    # if not np.allclose(sf, sf_old, rtol=0, atol=1e-2):
+    #
+    # if not np.allclose(sf, sf_old, rtol=0, atol=1e-4):
     #    import ipdb; ipdb.set_trace()
-    # if not np.allclose(sef, sef_old, rtol=0, atol=1e-2):
+    # if not np.allclose(sef, sef_old, rtol=0, atol=1e-4):
     #    import ipdb; ipdb.set_trace()
 
     # inner products between delayed versions of reference_sources
@@ -628,13 +628,14 @@ def _project(reference_sources, estimated_source, flen):
     # Filtering
     sproj = np.zeros(nsampl + flen - 1)
     for i in range(nsrc):
-        sproj += fftconvolve(C[:, i], reference_sources[i])[:nsampl + flen - 1]
+        sproj += _cuda_convolve(C[:, i], reference_sources[i])[:nsampl + flen - 1]
     return sproj
 
 
 def _cuda_convolve(tensor1, tensor2):
     n_fft = max(list(np.shape(tensor1)) + list(np.shape(tensor2)))
 
+    tensor1 = np.concatenate((tensor1, np.zeros(n_fft - len(tensor1))))
     tensor1_gpu = gpuarray.to_gpu(tensor1.astype(np.float32))
     fft1_gpu = gpuarray.empty(n_fft, np.complex64)
     fft1_plan = scfft.Plan(n_fft, np.float32, np.complex64)
@@ -642,7 +643,7 @@ def _cuda_convolve(tensor1, tensor2):
     fft1_gpu = fft1_gpu.get()
     fft1_gpu = np.concatenate((fft1_gpu[0:len(fft1_gpu)/2+1],
                           np.conj(np.flipud(fft1_gpu[1:len(fft1_gpu)/2]))))
-    fft1 = scipy.fftpack.fft(tensor1, n=n_fft)
+    # fft1 = scipy.fftpack.fft(tensor1, n=n_fft)
 
     tensor2_gpu = gpuarray.to_gpu(tensor2.astype(np.float32))
     fft2_gpu = gpuarray.empty(n_fft, np.complex64)
@@ -651,25 +652,30 @@ def _cuda_convolve(tensor1, tensor2):
     fft2_gpu = fft2_gpu.get()
     fft2_gpu = np.concatenate((fft2_gpu[0:len(fft2_gpu)/2+1],
                           np.conj(np.flipud(fft2_gpu[1:len(fft2_gpu)/2]))))
-    fft2 = scipy.fftpack.fft(tensor2, n=n_fft)
+    # fft2 = scipy.fftpack.fft(tensor2, n=n_fft)
 
-    if (not np.allclose(fft1, fft1_gpu, rtol=0, atol=1e-2)
-        and not np.allclose(fft2, fft2_gpu, rtol=0, atol=1e-2)):
-        import ipdb; ipdb.set_trace()
+    # if (not np.allclose(fft1, fft1_gpu, rtol=0, atol=1e-2)
+    #     or not np.allclose(fft2, fft2_gpu, rtol=0, atol=1e-2)):
+    #     import ipdb; ipdb.set_trace()
 
     inter = np.multiply(fft1_gpu, fft2_gpu)
-    inter_test = np.multiply(fft1, fft2)
+    # inter_test = np.multiply(fft1, fft2)
 
-    if not np.allclose(inter, inter_test, atol=0, rtol=1e-2):
-        import ipdb; ipdb.set_trace()
+    # if not np.allclose(inter, inter_test, rtol=0, atol=1e-2):
+    #     import ipdb; ipdb.set_trace()
 
-    tensor3_gpu = gpuarray.to_gpu(inter.astype(np.complex64))
-    fft3_gpu = gpuarray.empty(n_fft, np.complex64)
-    fft3_plan = scfft.Plan(n_fft, np.complex64,  np.complex64)
-    scfft.ifft(tensor3_gpu, fft3_gpu, fft3_plan)
-    fft3_gpu = np.real(fft3_gpu.get())
-    fft3_gpu = np.concatenate((fft3_gpu[0:len(fft3_gpu)/2+1],
-                          np.conj(np.flipud(fft3_gpu[1:len(fft3_gpu)/2]))))
+    # tensor3_gpu = gpuarray.to_gpu(inter.astype(np.complex64))
+    # fft3_gpu = gpuarray.empty(n_fft, np.complex64)
+    # fft3_plan = scfft.Plan(n_fft, np.complex64,  np.complex64)
+    # scfft.ifft(tensor3_gpu, fft3_gpu, fft3_plan)
+    # fft3_gpu = np.real(fft3_gpu.get())
+    # fft3_gpu = np.concatenate((fft3_gpu[0:len(fft3_gpu)/2+1],
+    #                       np.conj(np.flipud(fft3_gpu[1:len(fft3_gpu)/2]))))
+    fft3 = np.real(scipy.fftpack.ifft(inter))
+    fft3_gpu = fft3
+
+    # if not np.allclose(fft3, fft3_gpu, rtol=0, atol=1e-2):
+    #     import ipdb; ipdb.set_trace()
 
     return fft3_gpu
 
