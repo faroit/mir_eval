@@ -721,7 +721,17 @@ def _project_images(reference_sources, estimated_source, flen, G=None):
         for i in range(nchan * nsrc):
             for j in range(i+1):
                 ssf = sf[i] * np.conj(sf[j])
-                ssf = np.real(scipy.fftpack.ifft(ssf))
+
+                # ssf = np.real(scipy.fftpack.ifft(ssf))
+                ssf_gpu = gpuarray.to_gpu(ssf.astype(np.complex64))
+                out_gpu = gpuarray.empty(ssf.shape, np.complex64)
+                ssf_plan = scfft.Plan(ssf.shape, np.complex64, np.complex64)
+                scfft.fft(ssf_gpu, out_gpu, ssf_plan)
+                ssf = out_gpu.get()
+                ssf = np.concatenate((ssf[0:len(ssf)/2+1],
+                                      np.conj(np.flipud(ssf[1:len(ssf)/2]))))
+                ssf = np.real(ssf)
+
                 ss = toeplitz(np.hstack((ssf[0], ssf[-1:-flen:-1])),
                               r=ssf[:flen])
                 G[i * flen: (i+1) * flen, j * flen: (j+1) * flen] = ss
@@ -733,7 +743,17 @@ def _project_images(reference_sources, estimated_source, flen, G=None):
             for i in range(nchan * nsrc):
                 for j in range(i+1):
                     ssf = sf[i] * np.conj(sf[j])
-                    ssf = np.real(scipy.fftpack.ifft(ssf))
+
+                    # ssf = np.real(scipy.fftpack.ifft(ssf))
+                    ssf_gpu = gpuarray.to_gpu(ssf.astype(np.complex64))
+                    out_gpu = gpuarray.empty(ssf.shape, np.complex64)
+                    ssf_plan = scfft.Plan(ssf.shape, np.complex64, np.complex64)
+                    scfft.fft(ssf_gpu, out_gpu, ssf_plan)
+                    ssf = out_gpu.get()
+                    ssf = np.concatenate((ssf[0:len(ssf)/2+1],
+                                          np.conj(np.flipud(ssf[1:len(ssf)/2]))))
+                    ssf = np.real(ssf)
+
                     ss = toeplitz(np.hstack((ssf[0], ssf[-1:-flen:-1])),
                                   r=ssf[:flen])
                     G[i * flen: (i+1) * flen, j * flen: (j+1) * flen] = ss
@@ -745,7 +765,17 @@ def _project_images(reference_sources, estimated_source, flen, G=None):
     for k in range(nchan * nsrc):
         for i in range(nchan):
             ssef = sf[k] * np.conj(sef[i])
-            ssef = np.real(scipy.fftpack.ifft(ssef))
+
+            # ssef = np.real(scipy.fftpack.ifft(ssef))
+            ssef_gpu = gpuarray.to_gpu(ssef.astype(np.complex64))
+            out_gpu = gpuarray.empty(ssef.shape, np.complex64)
+            ssef_plan = scfft.Plan(ssef.shape, np.complex64, np.complex64)
+            scfft.fft(ssef_gpu, out_gpu, ssef_plan)
+            ssef = out_gpu.get()
+            ssef = np.concatenate((ssef[0:len(ssef)/2+1],
+                                  np.conj(np.flipud(ssef[1:len(ssef)/2]))))
+            ssef = np.real(ssef)
+            
             D[k * flen: (k+1) * flen, i] = \
                 np.hstack((ssef[0], ssef[-1:-flen:-1])).transpose()
 
