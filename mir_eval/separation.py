@@ -712,9 +712,9 @@ def _project(reference_sources, estimated_source, flen):
     # Computing projection
     # Distortion filters
     try:
-        C = np.linalg.solve(G, D).reshape(flen, nsrc, order='F')
-    except np.linalg.linalg.LinAlgError:
-        C = np.linalg.lstsq(G, D)[0].reshape(flen, nsrc, order='F')
+        C = scipy.linalg.solve(G, D).reshape(flen, nsrc, order='F')
+    except scipy.linalg.linalg.LinAlgError:
+        C = scipy.linalg.lstsq(G, D)[0].reshape(flen, nsrc, order='F')
     # Filtering
     sproj = np.zeros(nsampl + flen - 1)
     for i in range(nsrc):
